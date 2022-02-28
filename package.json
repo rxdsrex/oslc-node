@@ -1,0 +1,37 @@
+{
+  "name": "oslc-node",
+  "version": "1.0.0",
+  "description": "A modern OSLC client for OSLC application development in Node.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rxdsrex/oslc-node.git"
+  },
+  "keywords": [
+    "OSLC",
+    "Node.js",
+    "REST API",
+    "RDF"
+  ],
+  "author": "Rajnarayan Dutta",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/rxdsrex/oslc-node/issues"
+  },
+  "homepage": "https://github.com/rxdsrex/oslc-node#readme",
+  "dependencies": {
+    "got": "^12.0.1",
+    "rdflib": "^2.2.17"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.12.1",
+    "@typescript-eslint/parser": "^5.12.1",
+    "eslint": "^8.10.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.25.4",
+    "typescript": "^4.5.5"
+  }
+}
