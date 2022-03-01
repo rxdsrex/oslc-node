@@ -15,5 +15,22 @@
         "@typescript-eslint"
     ],
     "rules": {
+        "allowForLoopAfterthoughts": true,
+        "import/extensions": [
+            "error",
+            "ignorePackages",
+            {
+                "js": "never",
+                "ts": "never"
+            }
+        ],
+        "no-console": "off"
+    },
+    "settings": {
+        "import/resolver": {
+            "node": {
+                "extensions": [".js", ".ts"]
+            }
+        }
     }
 }
