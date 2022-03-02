@@ -195,14 +195,20 @@ class OSLCResource {
    * Return a object of name-value pairs for all properties of by this resource
    */
   getProperties() {
-    const result: PropertiesMap = {};
+    const result: PropertiesMap = Object.create(null);
     const statements = this.kb.statementsMatching(this.id, undefined, undefined);
     statements.forEach((statement) => {
-      if (typeof result[statement.predicate.value] !== 'undefined') {
-        if (Array.isArray(result[statement.predicate.value])) {
-          result[statement.predicate.value] = [...result[statement.predicate.value], statement.object.value];
-        } else {
-          result[statement.predicate.value] = [result[statement.predicate.value] as string, statement.object.value];
+      if (Object.prototype.hasOwnProperty.call(result, statement.predicate.value)) {
+        let value = result[statement.predicate.value];
+        if (Array.isArray(value)) {
+          value.push(statement.object.value);
+          result[statement.predicate.value] = value;
+        } else if (typeof value === 'string') {
+          const storeValue = value.substring(0);
+          value = [];
+          value.push(storeValue);
+          value.push(statement.object.value);
+          result[statement.predicate.value] = value;
         }
       } else {
         result[statement.predicate.value] = statement.object.value;
