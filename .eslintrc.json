@@ -15,7 +15,6 @@
         "@typescript-eslint"
     ],
     "rules": {
-        "allowForLoopAfterthoughts": true,
         "import/extensions": [
             "error",
             "ignorePackages",
@@ -24,7 +23,10 @@
                 "ts": "never"
             }
         ],
-        "no-console": "off"
+        "no-console": "off",
+        "no-plusplus": ["error", {
+            "allowForLoopAfterthoughts": true
+        }]
     },
     "settings": {
         "import/resolver": {
