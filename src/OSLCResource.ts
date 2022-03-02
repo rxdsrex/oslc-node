@@ -1,17 +1,38 @@
+/* eslint-disable max-len */
 /* eslint-disable camelcase */
-import Namespaces from 'namespaces';
 import {
-  BlankNode, blankNode, IndexedFormula, Literal, literal, NamedNode, sym,
+  blankNode, IndexedFormula, literal, sym, NamedNode,
 } from 'rdflib';
-import { Quad_Predicate } from 'rdflib/lib/tf-types';
+import {
+  Quad_Predicate, Term, BlankNode,
+} from 'rdflib/lib/tf-types';
+import Namespaces from './namespaces';
 
+interface PropertiesMap {
+  [key: string]: string | string[]
+}
+
+/**
+ * A store for a parsed RDF resource
+ */
 class OSLCResource {
+  /** URI of the Resource */
   id: NamedNode | BlankNode;
 
+  /** Parsed RDF resource */
   kb: IndexedFormula;
 
+  /** Etag of the RDF resource */
   etag?: string;
 
+  /**
+   * Initializes this Resource
+   *
+   * @constructor
+   * @param uri - URI of the Resource
+   * @param kb - Parsed RDF resource
+   * @param etag - Etag of the RDF resource
+   */
   constructor(uri: string, kb: IndexedFormula, etag?: string) {
     if (uri) {
       this.id = sym(uri);
@@ -59,22 +80,16 @@ class OSLCResource {
     }
   }
 
-  getURI() {
-    return this.id.value;
-  }
-
-  get(property: string | Quad_Predicate) {
-    const p = typeof property === 'string' ? this.kb.sym(property) : property;
-    const result = this.kb.each(this.id, p);
-    if (result.length === 1) {
-      return result[0].value;
-    } if (result.length > 1) {
-      return result.map((v) => v.value);
-    }
-    return null;
-  }
-
-  set(property: string | Quad_Predicate, value: string | Literal | string[]) {
+  /**
+   * Set a property of the resource. This method assumes any property could
+   * be multi-valued(Array). Based on open-world assumptions, it is not
+   * considered an error to attempt to set a property that doesn't exist. So
+   * set can be used to add new properties.
+   *
+   * @param property - The RDF property to set (Key)
+   * @param value - The new value (Value)
+   */
+  set(property: string | Quad_Predicate, value: Term | string | string[] | Term[]) {
     // first remove the current values
     const p = typeof property === 'string' ? this.kb.sym(property) : property;
     const subject = this.id;
@@ -88,45 +103,101 @@ class OSLCResource {
     }
   }
 
+  /**
+   * Get a property of the resource. This method assumes any property could
+   * be multi-valued or undefined. Based on open-world assumptions, it is not
+   * considered an error to attempt to get a property that doesn't exist. This
+   * would simply return null.
+   *
+   * @param property - The RDF property to get
+   */
+  get(property: string | Quad_Predicate) {
+    const p = typeof property === 'string' ? this.kb.sym(property) : property;
+    const result = this.kb.each(this.id, p);
+    if (result && result.length === 1) {
+      return result[0].value;
+    } if (result && result.length > 1) {
+      return result.map((v) => v.value);
+    }
+    return null;
+  }
+
+  /**
+   * Set the resource's dcterms:title property
+   *
+   * @param value - The dcterms:title value to set
+   */
+  setTitle(value: string) {
+    this.set(Namespaces.DCTERMS('title'), literal(value));
+  }
+
+  /**
+   * Set the resource's dcterms:description property
+   *
+   * @param value - The dcterms:description value to set
+   */
+  setDescription(value: string) {
+    this.set(Namespaces.DCTERMS('description'), literal(value));
+  }
+
+  /**
+   * Get the URI of the resource
+   */
+  getURI() {
+    return this.id.value;
+  }
+
+  /**
+   * Get the resource's dcterms:identifier property
+   */
   getIdentifier() {
     return this.get(Namespaces.DCTERMS('identifier'));
   }
 
+  /**
+   * Get the resource's dcterms:title property
+   */
   getTitle() {
     const result = this.get(Namespaces.DCTERMS('title'));
     return Array.isArray(result) ? result[0] : result;
   }
 
+  /**
+   * Get the resource's OSLC:shortTitle property
+   */
   getShortTitle() {
     return this.get(Namespaces.OSLC('shortTitle'));
   }
 
+  /**
+   * Get the resource's dcterms:description property
+   */
   getDescription() {
     const result = this.get(Namespaces.DCTERMS('description'));
     return Array.isArray(result) ? result[0] : result;
   }
 
-  setTitle(value: string) {
-    this.set(Namespaces.DCTERMS('title'), literal(value));
-  }
-
-  setDescription(value: string) {
-    this.set(Namespaces.DCTERMS('description'), literal(value));
-  }
-
-  getLinkTypes() {
-    const linkTypes = new Set();
+  /**
+   * Return an Set of ObjectProperties provided by this resource
+   */
+  getObjectProperties() {
+    const objectProperties: Set<string> = new Set();
     const statements = this.kb.statementsMatching(this.id, undefined, undefined);
-    for (const statement of statements) {
-      if (statement.object instanceof NamedNode) linkTypes.add(statement.predicate.value);
-    }
-    return linkTypes;
+    statements.forEach((statement) => {
+      if (statement.object instanceof NamedNode) {
+        objectProperties.add(statement.predicate.value);
+      }
+    });
+    return objectProperties;
   }
 
+  /**
+   * Return a object of name-value pairs for all properties of by this resource
+   */
   getProperties() {
-    const result: { [key: string]: string | string[]} = {};
+    const result: PropertiesMap = {};
     const statements = this.kb.statementsMatching(this.id, undefined, undefined);
-    for (const statement of statements) {
+    statements.forEach((statement) => {
       if (typeof result[statement.predicate.value] !== 'undefined') {
         if (Array.isArray(result[statement.predicate.value])) {
           result[statement.predicate.value] = [...result[statement.predicate.value], statement.object.value];
@@ -136,7 +207,19 @@ class OSLCResource {
       } else {
         result[statement.predicate.value] = statement.object.value;
       }
-    }
+    });
     return result;
   }
+
+  /**
+   * Remove a property from the resource
+   * @param property - The RDF property to remove from the resource
+   */
+  removeProperty(property: string | Quad_Predicate) {
+    const p = typeof property === 'string' ? this.kb.sym(property) : property;
+    const subject = this.id;
+    this.kb.remove(this.kb.statementsMatching(subject, p, undefined));
+  }
 }
+
+export default OSLCResource;
