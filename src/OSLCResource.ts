@@ -14,6 +14,15 @@ interface PropertiesMap {
 
 /**
  * A store for a parsed RDF resource
+ * This is a generic OSLC resource. Properties for
+ * a particular domain resource will be added dynamically
+ * when it is read. This allows the OSLC module to be used
+ * on any domain without change or extension.
+ *
+ * However, subclasses could be created for any OSLC domain
+ * as a convenience for those domain resources.
+ *
+ * @class
  */
 class OSLCResource {
   /** URI of the Resource */
