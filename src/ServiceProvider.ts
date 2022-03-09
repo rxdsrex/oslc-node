@@ -3,6 +3,11 @@ import { Quad_Object, Quad_Subject } from 'rdflib/lib/tf-types';
 import Namespaces from './namespaces';
 import OSLCResource from './OSLCResource';
 
+/**
+ * Encapsulates a OSLC ServiceProvider resource as in-memroy RDF knowledge base
+ * @class
+ * @extends OSLCResource
+ */
 class ServiceProvider extends OSLCResource {
   /**
    * Get the queryBase URL for an OSLC QueryCapability with the given oslc:resourceType
