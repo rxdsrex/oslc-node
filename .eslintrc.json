@@ -26,7 +26,9 @@
         "no-console": "off",
         "no-plusplus": ["error", {
             "allowForLoopAfterthoughts": true
-        }]
+        }],
+        "no-restricted-syntax": 0,
+        "linebreak-style": 0
     },
     "settings": {
         "import/resolver": {
