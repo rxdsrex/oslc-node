@@ -1,16 +1,31 @@
 class OSLCError extends Error {
-  errorCode?: Number;
+  /** The error code (Can be standard HTTP error codes) */
+  code?: Number;
 
-  constructor(message: string, errorCode?: Number) {
+  /** The stack trace of the error */
+  stack?: string;
+
+  /**
+   * Constructs OSLCError object.
+   *
+   * @param message - The error message
+   * @param errorCode - The error code (Can be standard HTTP error codes)
+   * @param errStack - The stack trace of the error
+   */
+  constructor(message: string, errorCode?: Number, errStack?: string) {
     super(message);
     this.name = 'OSLCError';
-    this.errorCode = errorCode;
+    this.code = errorCode || 500;
+    this.stack = errStack;
     // Set the prototype explicitly.
     Object.setPrototypeOf(this, OSLCError.prototype);
   }
 
+  /**
+   * Returns error description corresponding the error code.
+   */
   getErrorType() {
-    const { errorCode } = this;
+    const { code: errorCode } = this;
     if (errorCode === undefined) {
       return 'Error code not defined';
     }
