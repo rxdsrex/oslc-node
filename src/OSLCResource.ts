@@ -231,9 +231,9 @@ class OSLCResource {
    * @param property - The RDF property to remove from the resource
    */
   removeProperty(property: string | Quad_Predicate) {
-    const p = typeof property === 'string' ? this.kb.sym(property) : property;
+    const predicate = typeof property === 'string' ? this.kb.sym(property) : property;
     const subject = this.id;
-    this.kb.remove(this.kb.statementsMatching(subject, p, undefined));
+    this.kb.remove(this.kb.statementsMatching(subject, predicate, undefined));
   }
 }
 
