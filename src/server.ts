@@ -1,3 +1,4 @@
+import OSLCRequest from 'OSLCRequest';
 import OSLCError from './OSLCError';
 import Namespaces from './namespaces';
 import RootServices from './RootServices';
@@ -33,6 +34,9 @@ class OSLCServer {
   /** A service provider describing available services */
   serviceProvider: ServiceProvider | undefined;
 
+  /** Instance of the HTTP request client */
+  request: OSLCRequest;
+
   /**
    * Construct a OSLCServer object
    *
@@ -44,6 +48,7 @@ class OSLCServer {
     this.serverURI = serverURI;
     this.username = username;
     this.password = password;
+    this.request = new OSLCRequest(username, password);
   }
 }
 
