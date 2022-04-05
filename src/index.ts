@@ -1,3 +1,4 @@
+/* eslint-disable import/prefer-default-export */
 import OSLCServer from './server';
 
-export default OSLCServer;
+export { OSLCServer };
