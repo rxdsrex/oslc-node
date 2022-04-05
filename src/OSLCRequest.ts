@@ -1,16 +1,19 @@
-import got, {
-  Got, Options, Response,
-} from 'got';
+import got, { Got, Options, Response } from 'got';
 import { Agent as HttpAgent, AgentOptions } from 'http';
 import { Agent as HttpsAgent } from 'https';
 import { CookieJar } from 'tough-cookie';
 
-export interface RequestOptions extends Options {
+export type RequestType = {
   url: string | URL;
   requestType: 'OSLC' | 'REST' | 'RESTJSON' | 'IMAGE';
   isStream?: false;
   resolveBodyOnly?: false;
-}
+} & Options;
+
+export type ResponseType<T> =
+  T extends { requestType: 'OSLC' | 'REST' | 'RESTJSON' } ? string :
+  T extends { requestType: 'IMAGE'; } ? Buffer :
+  never;
 
 /**
  * The HTTP request client to communicate with OSLC Server
@@ -56,58 +59,64 @@ class OSLCRequest {
    *
    * @param requestOptions - Options object for the request
    */
-  public async ibmElmAuthGet(requestOptions: RequestOptions) {
+  public async ibmElmAuthGet<T extends RequestType>(requestOptions: T):
+    Promise<Response<ResponseType<T>>> {
     try {
       const { requestType } = requestOptions;
-      const options: RequestOptions = {
+      const options = {
         ...requestOptions,
         responseType: 'text',
       };
 
-      if (requestType === 'OSLC') {
-        options.headers = {
-          Accept: 'application/rdf+xml', // reliably available RDF representation
-          'OSLC-Core-Version': '2.0',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        };
-      } else if (requestType === 'REST') {
-        options.headers = {
-          Accept: 'application/xml',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        };
-      } else if (requestType === 'RESTJSON') {
-        options.headers = {
-          Accept: 'text/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        };
-      } else if (requestType === 'IMAGE') {
-        options.headers = {
-          Accept: 'image/jpeg,image/png',
-        };
-        options.responseType = 'buffer';
-      } else {
-        throw new Error('requestType not provided properly in the requestOptions object. Request not completed.');
+      switch (requestType) {
+        case 'OSLC':
+          options.headers = {
+            Accept: 'application/rdf+xml',
+            'OSLC-Core-Version': '2.0',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          break;
+        case 'REST':
+          options.headers = {
+            Accept: 'application/xml',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          break;
+        case 'RESTJSON':
+          options.headers = {
+            Accept: 'text/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          break;
+        case 'IMAGE':
+          options.headers = {
+            Accept: 'image/jpeg,image/png',
+          };
+          options.responseType = 'buffer';
+          break;
+        default:
+          throw new Error('requestType not provided properly in the requestOptions object. Request not completed.');
       }
 
       if (typeof options.url === 'string') {
         options.url = new URL(options.url);
       }
 
-      let response: Response<string | Buffer>;
+      let response: Response<ResponseType<T>>;
       if (options.url) {
-        response = await this.gotInstance(options) as Response<string | Buffer>;
+        response = await this.gotInstance(options) as Response<ResponseType<T>>;
         if (response && response.headers['x-com-ibm-team-repository-web-auth-msg'] === 'authrequired') {
           const authResponse = await this.ibmElmFormLogin(options);
           if (authResponse.headers['x-com-ibm-team-repository-web-auth-msg'] === 'authfailed') {
             throw new Error(`401 : Authentication failed while requesting: ${options.url.href}`);
           } else {
-            response = await this.gotInstance(options) as Response<string | Buffer>;
+            response = await this.gotInstance(options) as Response<ResponseType<T>>;
           }
         } else if (response && response.headers['www-authenticate']) {
           options.method = 'GET';
           options.username = this.username;
           options.password = this.password;
-          response = await this.gotInstance(options) as Response<string | Buffer>;
+          response = await this.gotInstance(options) as Response<ResponseType<T>>;
         }
       } else {
         return Promise.reject(new Error('requestUri is undefined. Request not completed.'));
@@ -123,7 +132,8 @@ class OSLCRequest {
    *
    * @param authOptions - Options for request
    */
-  public async ibmElmFormLogin(authOptions: RequestOptions) {
+  public async ibmElmFormLogin<T extends RequestType>(authOptions: T):
+    Promise<Response<ResponseType<T>>> {
     try {
       const options = { ...authOptions };
       if (typeof options.url === 'string') {
@@ -138,7 +148,7 @@ class OSLCRequest {
       options.body = `j_username=${encodeURIComponent(this.username)}&j_password=${encodeURIComponent(this.password)}`;
       const loginUrlStr = `${hrefWOParams}/j_security_check`;
       options.url = new URL(loginUrlStr);
-      const response = await this.gotInstance(options) as Response<string | Buffer>;
+      const response = await this.gotInstance(options) as Response<ResponseType<T>>;
       return Promise.resolve(response);
     } catch (err) {
       return Promise.reject(err);
