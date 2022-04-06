@@ -76,3 +76,4 @@ typings/
 .cache
 
 dist/
+.vscode/launch.json
