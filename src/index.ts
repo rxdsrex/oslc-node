@@ -1,3 +1,5 @@
-import { OSLCServer, namespaces } from './server';
+import OSLCServer from './server';
+import namespaces from './namespaces';
+import OSLCError from './OSLCError';
 
-export { OSLCServer, namespaces };
+export { OSLCServer, OSLCError, namespaces };

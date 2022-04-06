@@ -123,9 +123,7 @@ class OSLCResource {
   get(property: string | Quad_Predicate) {
     const p = typeof property === 'string' ? this.kb.sym(property) : property;
     const result = this.kb.each(this.id, p);
-    if (result && result.length === 1) {
-      return result[0].value;
-    } if (result && result.length > 1) {
+    if (result && result.length > 0) {
       return result.map((v) => v.value);
     }
     return null;

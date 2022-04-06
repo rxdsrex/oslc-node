@@ -16,7 +16,7 @@ import ServiceProvider from './ServiceProvider';
  *
  * @class
  */
-export class OSLCServer {
+class OSLCServer {
   /** The URI of the OSLC server being accessed */
   public serverURI: string;
 
@@ -54,14 +54,17 @@ export class OSLCServer {
     this.password = password;
     this.request = new OSLCRequest(username, password);
 
-    // Binding this to all async instance methods
+    // Explicitly binding this to all async instance methods
     // to access 'this' inside async methods.
     this.connect = this.connect.bind(this);
     this.read = this.read.bind(this);
+    this.use = this.use.bind(this);
+    this.getJazzProjectAreaId = this.getJazzProjectAreaId.bind(this);
   }
 
   /**
-   * Connect to the server with the given credentials
+   * Connect to the server and set the Service Provider Catalog
+   * @param serviceProvider - the rootservices oslc_*:*serviceProviders to connect to
    */
   public async connect(serviceProvider: NamedNode) {
     try {
@@ -77,6 +80,68 @@ export class OSLCServer {
         throw new OSLCError(`Service Provider Catalog URI could not be resolved for: ${serviceProvider.value}`, 404);
       }
       return Promise.resolve();
+    } catch (err) {
+      return OSLCServer.handleError(err);
+    }
+  }
+
+  /**
+   * Set the OSLCServer context to use the given
+   * ServiceProvider(e.g., project area for the jazz.net apps).
+   * After this call, all the Services for the ServiceProvider are known.
+   *
+   * @param serviceProviderTitle - the ServiceProvider or LDP Container (e.g., project area) name
+   */
+  public async use(serviceProviderTitle: string) {
+    try {
+      this.serviceProviderTitle = serviceProviderTitle;
+      const { serviceProviderCatalog, read } = this;
+
+      if (serviceProviderCatalog) {
+        // From the service provider catalog, get the service provider resource
+        const serviceProviderURL = serviceProviderCatalog.serviceProvider(serviceProviderTitle);
+        if (serviceProviderURL) {
+          const resource = await read(serviceProviderURL);
+          this.serviceProvider = new ServiceProvider(resource.id.value, resource.kb);
+          return Promise.resolve();
+        }
+        throw new OSLCError(`Service Provider URL could not be resolved for: ${serviceProviderTitle}`, 404);
+      } else {
+        throw new OSLCError('serviceProviderCatalog is not initialized.'
+        + ' Please run the connect function before running this function.', 500);
+      }
+    } catch (err) {
+      return OSLCServer.handleError(err);
+    }
+  }
+
+  /**
+   * Gets the project area ID from serviceProvider.
+   * This function will yield results only if serviceProvider is set.
+   * Otherwise, it will throw an OSLCError.
+   */
+  public async getJazzProjectAreaId() {
+    try {
+      const { serviceProvider } = this;
+      const { OSLC } = Namespaces;
+      if (serviceProvider) {
+        const paDetails = serviceProvider.get(OSLC('details'));
+        if (paDetails) {
+          const paURL = new URL(paDetails[0]);
+          const regex = /\/process\/project-areas\/(.+)$/g;
+          const { pathname } = paURL;
+          const matches = [...pathname.matchAll(regex)];
+          if (matches.length) {
+            const match = matches[0];
+            if (match.length && match.length > 1) {
+              return Promise.resolve(match[1]);
+            }
+          }
+        }
+        return Promise.resolve(null);
+      }
+      throw new OSLCError('serviceProvider is not initialized.'
+      + ' Please run the use function before running this function.', 500);
     } catch (err) {
       return OSLCServer.handleError(err);
     }
@@ -122,7 +187,7 @@ export class OSLCServer {
   }
 
   private static handleError(err: unknown) {
-    if (err instanceof OSLCError) {
+    if (err instanceof OSLCError && Object.getPrototypeOf(err) === OSLCError.prototype) {
       return Promise.reject(err);
     } if (err instanceof Error) {
       return Promise.reject(new OSLCError(err.message, 500, err.stack));
@@ -131,5 +196,4 @@ export class OSLCServer {
   }
 }
 
-/** Re-export of common OSLC namespaces */
-export const namespaces = Namespaces;
+export default OSLCServer;
