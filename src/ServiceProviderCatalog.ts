@@ -1,4 +1,6 @@
-import { IndexedFormula, NamedNode, Variable } from 'rdflib';
+import {
+  IndexedFormula, Literal, NamedNode, Variable,
+} from 'rdflib';
 import Namespaces from './namespaces';
 import OSLCResource from './OSLCResource';
 
@@ -35,10 +37,14 @@ class ServiceProviderCatalog extends OSLCResource {
     sp = this.kb.each(
       undefined,
       Namespaces.DCTERMS('title'),
-      this.kb.rdfFactory.literal(serviceProviderTitle, undefined, this.xmlLiteral),
+      new Literal(serviceProviderTitle, null, this.xmlLiteral),
     ) as Variable[] | null;
     if (sp && !sp.length) {
-      sp = this.kb.each(undefined, Namespaces.DCTERMS('title'), this.kb.rdfFactory.literal(serviceProviderTitle)) as Variable[] | null;
+      sp = this.kb.each(
+        undefined,
+        Namespaces.DCTERMS('title'),
+        new Literal(serviceProviderTitle),
+      ) as Variable[] | null;
     }
     if (sp && !sp.length) {
       return null;
