@@ -16,30 +16,30 @@ import ServiceProvider from './ServiceProvider';
  *
  * @class
  */
-class OSLCServer {
+export class OSLCServer {
   /** The URI of the OSLC server being accessed */
-  serverURI: string;
+  public serverURI: string;
 
   /** The user name or authentication ID of the user */
-  username: string;
+  public username: string;
 
   /** The user's password credentials */
-  password: string;
+  public password: string;
 
   /** The Jazz rootservices document */
-  rootServices: RootServices | undefined;
+  public rootServices: RootServices | undefined;
 
   /** The server's service provider catalog */
-  serviceProviderCatalog: ServiceProviderCatalog | undefined;
+  public serviceProviderCatalog: ServiceProviderCatalog | undefined;
 
   /** the project area name that user wants to access */
-  serviceProviderTitle: string | undefined;
+  public serviceProviderTitle: string | undefined;
 
   /** A service provider describing available services */
-  serviceProvider: ServiceProvider | undefined;
+  public serviceProvider: ServiceProvider | undefined;
 
   /** Instance of the HTTP request client */
-  request: OSLCRequest;
+  public request: OSLCRequest;
 
   /**
    * Construct a OSLCServer object
@@ -48,17 +48,22 @@ class OSLCServer {
    * @param username - User name or authentication ID of the user
    * @param password - User's password credentials
    */
-  constructor(serverURI: string, username: string, password: string) {
+  public constructor(serverURI: string, username: string, password: string) {
     this.serverURI = serverURI;
     this.username = username;
     this.password = password;
     this.request = new OSLCRequest(username, password);
+
+    // Binding this to all async instance methods
+    // to access 'this' inside async methods.
+    this.connect = this.connect.bind(this);
+    this.read = this.read.bind(this);
   }
 
   /**
    * Connect to the server with the given credentials
    */
-  async connect(serviceProvider: NamedNode) {
+  public async connect(serviceProvider: NamedNode) {
     try {
       const { read, serverURI } = this;
       const rootServices = await read(`${serverURI}/rootservices`);
@@ -68,12 +73,12 @@ class OSLCServer {
       if (catalogUri) {
         const catalog = await read(catalogUri);
         this.serviceProviderCatalog = new ServiceProviderCatalog(catalog.id.value, catalog.kb);
-        Promise.resolve();
       } else {
         throw new OSLCError(`Service Provider Catalog URI could not be resolved for: ${serviceProvider.value}`, 404);
       }
+      return Promise.resolve();
     } catch (err) {
-      OSLCServer.handleError(err);
+      return OSLCServer.handleError(err);
     }
   }
 
@@ -83,12 +88,11 @@ class OSLCServer {
    *
    * @param resourceUri - The URI of the resource to read.
    */
-  async read(resourceUri: string | URL) {
+  public async read(resourceUri: string | URL) {
     try {
-      const { request } = this;
       const uri = typeof resourceUri === 'string' ? new URL(resourceUri) : resourceUri;
 
-      const response = await request.ibmElmAuthGet({
+      const response = await this.request.ibmElmAuthGet({
         url: uri,
         requestType: 'OSLC',
       });
@@ -127,4 +131,5 @@ class OSLCServer {
   }
 }
 
-export default OSLCServer;
+/** Re-export of common OSLC namespaces */
+export const namespaces = Namespaces;

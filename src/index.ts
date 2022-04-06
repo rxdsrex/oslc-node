@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export */
-import OSLCServer from './server';
+import { OSLCServer, namespaces } from './server';
 
-export { OSLCServer };
+export { OSLCServer, namespaces };
