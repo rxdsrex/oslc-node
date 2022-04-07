@@ -18,8 +18,8 @@ describe('Test basic functionalities', () => {
     await expect(server.use(projectAreaName)).resolves.not.toThrow();
   });
 
-  test('OSLCServer.getJazzProjectAreaId() is able to get project area ID of '
-    + projectAreaName + ' to be ' + '_t_RxYJYWEeyjQ_tStwnY_w', async () => {
-      await expect(server.getJazzProjectAreaId()).resolves.toBe('_t_RxYJYWEeyjQ_tStwnY_w');
-    });
+  test(`OSLCServer.getJazzProjectAreaId() is able to get project area ID of ${
+    projectAreaName} to be _t_RxYJYWEeyjQ_tStwnY_w`, async () => {
+    await expect(server.getJazzProjectAreaId()).resolves.toBe('_t_RxYJYWEeyjQ_tStwnY_w');
+  });
 });
