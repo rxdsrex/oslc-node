@@ -2,18 +2,7 @@ import got, { Got, Options, Response } from 'got';
 import { Agent as HttpAgent, AgentOptions } from 'http';
 import { Agent as HttpsAgent } from 'https';
 import { CookieJar } from 'tough-cookie';
-
-export type RequestType = {
-  url: string | URL;
-  requestType: 'OSLC' | 'REST' | 'RESTJSON' | 'IMAGE';
-  isStream?: false;
-  resolveBodyOnly?: false;
-} & Options;
-
-export type ResponseType<T> =
-  T extends { requestType: 'OSLC' | 'REST' | 'RESTJSON' } ? string :
-  T extends { requestType: 'IMAGE'; } ? Buffer :
-  never;
+import { RequestType, ResponseType } from './types';
 
 /**
  * The HTTP request client to communicate with OSLC Server

@@ -1,5 +1,5 @@
 import { IndexedFormula, parse } from 'rdflib';
-import { NamedNode } from 'rdflib/lib/tf-types';
+import { NamedNode, Quad_Subject as QSubject } from 'rdflib/lib/tf-types';
 import OSLCRequest from './OSLCRequest';
 import OSLCResource from './OSLCResource';
 import Compact from './Compact';
@@ -8,6 +8,7 @@ import Namespaces from './namespaces';
 import RootServices from './RootServices';
 import ServiceProviderCatalog from './ServiceProviderCatalog';
 import ServiceProvider from './ServiceProvider';
+import { QueryOptions } from './types';
 
 /**
  * OSLCServer is he root of a JavaScript Node.js API for accessing OSLC resources.
@@ -54,7 +55,7 @@ class OSLCServer {
     this.password = password;
     this.request = new OSLCRequest(username, password);
 
-    // Explicitly binding this to all async instance methods
+    // Explicitly binding 'this' to all async instance methods
     // to access 'this' inside async methods.
     this.connect = this.connect.bind(this);
     this.read = this.read.bind(this);
@@ -108,7 +109,7 @@ class OSLCServer {
         throw new OSLCError(`Service Provider URL could not be resolved for: ${serviceProviderTitle}`, 404);
       } else {
         throw new OSLCError('serviceProviderCatalog is not initialized.'
-        + ' Please run the connect function before running this function.', 500);
+          + ' Please run the connect function before running this function.', 500);
       }
     } catch (err) {
       return OSLCServer.handleError(err);
@@ -141,7 +142,84 @@ class OSLCServer {
         return Promise.resolve(null);
       }
       throw new OSLCError('serviceProvider is not initialized.'
-      + ' Please run the use function before running this function.', 500);
+        + ' Please run the use function before running this function.', 500);
+    } catch (err) {
+      return OSLCServer.handleError(err);
+    }
+  }
+
+  /**
+   * Execute an OSLC query on server resources (e.g., ChangeRequests).
+   *
+   * A query with only a where clause returns a list of matching members URIs
+   * A query with a select/properties clause returns the matching members and the
+   * RDF representation of the resource including the selected properties.
+   *
+   * @param options - options for the query.
+   */
+  public async query(options: QueryOptions) {
+    try {
+      const { request } = this;
+      const { OSLC } = Namespaces;
+
+      const queryURL = new URL(OSLCServer.getQueryURLFromOptions(options));
+      const response = await request.ibmElmAuthGet({
+        url: queryURL,
+        requestType: 'OSLC',
+      });
+
+      if (response.headers['x-com-ibm-team-repository-web-auth-msg'] === 'authfailed' || response.statusCode === 401) {
+        throw new OSLCError(`Authentication failed while requesting URL: ${queryURL.href}`, 401);
+      }
+      if (response.statusCode !== 200) {
+        const { body } = response;
+        const kb = new IndexedFormula();
+        if (body.trim().length) {
+          parse(body, kb, queryURL.href, 'application/rdf+xml');
+          const errorMsg = kb.statementsMatching(undefined, OSLC('message')).length
+            ? kb.statementsMatching(undefined, OSLC('nextPage'))[0].object.value
+            : '';
+          throw new OSLCError(
+            `Error while executing OSLC query: ${queryURL.href}. Status: ${response.statusCode}. Error message: ${errorMsg}`,
+            response.statusCode,
+          );
+        }
+        throw new OSLCError(
+          `Error while executing OSLC query: ${queryURL.href}. Status: ${response.statusCode}`,
+          response.statusCode,
+        );
+      }
+
+      const { body } = response;
+      const kb = new IndexedFormula();
+      parse(body, kb, queryURL.href, 'application/rdf+xml');
+
+      if (options.getCount) {
+        const count = parseInt(kb.statementsMatching(undefined, OSLC('totalCount'))[0].object.value, 10);
+        return Promise.resolve(count);
+      }
+      const resources = [];
+      // TODO: getting the members must use the discovered member predicate,
+      // TODO: rdfs:member is the default
+      const predicate = typeof options.what === 'string' ? kb.sym(options.what) : options.what;
+      const members = kb.each(kb.sym(options.from), predicate);
+      for (const member of members) {
+        const memberStatements = kb.statementsMatching(member as QSubject, undefined, undefined);
+        const memberKb = new IndexedFormula();
+        memberKb.add(memberStatements);
+        resources.push(new OSLCResource(member.value, memberKb));
+      }
+
+      if (options.paginate) {
+        const nextPage = kb.statementsMatching(undefined, OSLC('nextPage')).length
+          ? kb.statementsMatching(undefined, OSLC('nextPage'))[0].object.value
+          : null;
+        return Promise.resolve({
+          resources,
+          nextPage,
+        });
+      }
+      return Promise.resolve(resources);
     } catch (err) {
       return OSLCServer.handleError(err);
     }
@@ -163,10 +241,10 @@ class OSLCServer {
       });
 
       if (response.headers['x-com-ibm-team-repository-web-auth-msg'] === 'authfailed' || response.statusCode === 401) {
-        return Promise.reject(new OSLCError(`Authentication failed while requesting URL: ${uri}`, 401));
+        throw new OSLCError(`Authentication failed while requesting URL: ${uri.href}`, 401);
       }
       if (response.statusCode !== 200) {
-        return Promise.reject(new OSLCError(`Could not read resource with URI: ${uri}. Status: ${response.statusCode}`, response.statusCode));
+        throw new OSLCError(`Could not read resource with URI: ${uri.href}. Status: ${response.statusCode}`, response.statusCode);
       }
 
       const { body } = response;
@@ -184,6 +262,40 @@ class OSLCServer {
     } catch (err) {
       return OSLCServer.handleError(err);
     }
+  }
+
+  private static getQueryURLFromOptions(options: QueryOptions) {
+    const queryBase = options.from;
+    let queryURL = '';
+    if (options.paginate && queryBase.includes('oslc.paging=true')) {
+      queryURL += `?oslc.paging=true&oslc.pageSize=${options.pageSize || 512}`;
+    }
+    if (options.paginate && options.pageArg) {
+      queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
+      queryURL += `${options.pageArg.key}=${options.pageArg.value}`;
+    }
+    if (options.prefix) {
+      queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
+      queryURL += `oslc.prefix=${options.prefix}`;
+    }
+    if (options.properties) {
+      queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
+      queryURL += `oslc.properties=${options.properties}`;
+    }
+    if (options.select) {
+      queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
+      queryURL += `oslc.select=${options.select}`;
+    }
+    if (options.where) {
+      queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
+      queryURL += `oslc.where=${options.where}`;
+    }
+    if (options.orderBy) {
+      queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
+      queryURL += `oslc.orderBy=${options.orderBy}`;
+    }
+    queryURL = `${queryBase}${queryURL}`;
+    return queryURL;
   }
 
   private static handleError(err: unknown) {
