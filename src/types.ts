@@ -1,5 +1,7 @@
+/* eslint-disable max-len */
 import { Options } from 'got';
 import { Quad_Predicate as QPredicate } from 'rdflib/lib/tf-types';
+import OSLCResource from './OSLCResource';
 
 export interface QueryOptions {
   /** The queryBase URI to use for executing the query from the service provider */
@@ -16,7 +18,7 @@ export interface QueryOptions {
   properties?: string;
 
   /** A list of resource properties to return. Eg. 'literal:property' */
-  select: string;
+  select?: string;
 
   /** What resources to return. Eg. 'property=value' */
   where?: string;
@@ -26,7 +28,7 @@ export interface QueryOptions {
 
   /** Set to true get the number of results yielded from the query.
    * @default false */
-  getCount?: boolean;
+  totalCount?: boolean;
 
   /** Set to true to enable pagination.
    * @default false */
@@ -41,6 +43,36 @@ export interface QueryOptions {
     value: Number;
   };
 }
+
+type AllQueryResponse = {
+  resources: OSLCResource[];
+  nextPage: string;
+  totalCount: number;
+}
+
+type PaginatedQueryResponse = {
+  resources: OSLCResource[];
+  nextPage: string;
+}
+
+type CountQueryResponse = {
+  resources: OSLCResource[];
+  totalCount: number;
+}
+
+type OnlyResourceQueryResponse = {
+  resources: OSLCResource[];
+}
+
+export type QueryResponse<T> =
+  T extends { totalCount: true, paginate: true } ? AllQueryResponse :
+  T extends { totalCount: false, paginate: true } ? PaginatedQueryResponse :
+  T extends { paginate: true } ? PaginatedQueryResponse :
+  T extends { totalCount: true, paginate: false } ? CountQueryResponse :
+  T extends { totalCount: true } ? CountQueryResponse :
+  T extends { totalCount: false, paginate: false } ? OnlyResourceQueryResponse :
+  T extends { } ? OnlyResourceQueryResponse :
+  never;
 
 export type RequestType = {
   url: string | URL;

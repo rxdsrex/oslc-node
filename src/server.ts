@@ -8,7 +8,7 @@ import Namespaces from './namespaces';
 import RootServices from './RootServices';
 import ServiceProviderCatalog from './ServiceProviderCatalog';
 import ServiceProvider from './ServiceProvider';
-import { QueryOptions } from './types';
+import { QueryOptions, QueryResponse } from './types';
 
 /**
  * OSLCServer is he root of a JavaScript Node.js API for accessing OSLC resources.
@@ -158,7 +158,7 @@ class OSLCServer {
    *
    * @param options - options for the query.
    */
-  public async query(options: QueryOptions) {
+  public async query<T extends QueryOptions>(options: T) : Promise<QueryResponse<T>> {
     try {
       const { request } = this;
       const { OSLC } = Namespaces;
@@ -195,10 +195,21 @@ class OSLCServer {
       const kb = new IndexedFormula();
       parse(body, kb, queryURL.href, 'application/rdf+xml');
 
-      if (options.getCount) {
-        const count = parseInt(kb.statementsMatching(undefined, OSLC('totalCount'))[0].object.value, 10);
-        return Promise.resolve(count);
+      let totalCount = -1;
+      let nextPage;
+      if (options.totalCount) {
+        totalCount = 0;
+        const totalCountStatements = kb.statementsMatching(undefined, OSLC('totalCount'));
+        if (totalCountStatements.length) {
+          totalCount = parseInt(totalCountStatements[0].object.value, 10);
+        }
       }
+      if (options.paginate) {
+        nextPage = kb.statementsMatching(undefined, OSLC('nextPage')).length
+          ? kb.statementsMatching(undefined, OSLC('nextPage'))[0].object.value
+          : '';
+      }
+
       const resources = [];
       // TODO: getting the members must use the discovered member predicate,
       // TODO: rdfs:member is the default
@@ -211,16 +222,13 @@ class OSLCServer {
         resources.push(new OSLCResource(member.value, memberKb));
       }
 
-      if (options.paginate) {
-        const nextPage = kb.statementsMatching(undefined, OSLC('nextPage')).length
-          ? kb.statementsMatching(undefined, OSLC('nextPage'))[0].object.value
-          : null;
-        return Promise.resolve({
-          resources,
-          nextPage,
-        });
-      }
-      return Promise.resolve(resources);
+      const resolveObj = {
+        resources,
+        nextPage: nextPage ? undefined : nextPage,
+        totalCount: totalCount > -1 ? undefined : totalCount,
+      };
+
+      return Promise.resolve(resolveObj) as Promise<QueryResponse<T>>;
     } catch (err) {
       return OSLCServer.handleError(err);
     }
