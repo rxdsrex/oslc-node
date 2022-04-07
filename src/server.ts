@@ -58,9 +58,10 @@ class OSLCServer {
     // Explicitly binding 'this' to all async instance methods
     // to access 'this' inside async methods.
     this.connect = this.connect.bind(this);
-    this.read = this.read.bind(this);
     this.use = this.use.bind(this);
     this.getJazzProjectAreaId = this.getJazzProjectAreaId.bind(this);
+    this.query = this.query.bind(this);
+    this.read = this.read.bind(this);
   }
 
   /**
