@@ -48,12 +48,15 @@ class OSLCServer {
    * @param serverURI - The server URI
    * @param username - User name or authentication ID of the user
    * @param password - User's password credentials
+   * @param proxyUrl - (Optional) Proxy URL to connect to the server
+   * @param networkInterface - (Optional) Network interface IP to bind for network connections.
+   *                           Generally needed when connecting through a VPN.
    */
-  public constructor(serverURI: string, username: string, password: string) {
+  public constructor(serverURI: string, username: string, password: string, proxyUrl?: string, networkInterface?: string) {
     this.serverURI = serverURI;
     this.username = username;
     this.password = password;
-    this.request = new OSLCRequest(username, password);
+    this.request = new OSLCRequest(username, password, proxyUrl, networkInterface);
 
     // Explicitly binding 'this' to all async instance methods
     // to access 'this' inside async methods.
