@@ -85,3 +85,9 @@ export type ResponseType<T> =
   T extends { requestType: 'OSLC' | 'REST' | 'RESTJSON' } ? string :
   T extends { requestType: 'IMAGE'; } ? Buffer :
   never;
+
+export interface ServiceProviderDetails {
+  servicesUrl: string;
+  serviceProviderName: string;
+  detailsUrl: string;
+}

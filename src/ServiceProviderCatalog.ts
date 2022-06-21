@@ -1,6 +1,7 @@
 import {
   IndexedFormula, Literal, NamedNode, Variable,
 } from 'rdflib';
+import { ServiceProviderDetails } from './types';
 import Namespaces from './namespaces';
 import OSLCResource from './OSLCResource';
 
@@ -40,16 +41,32 @@ class ServiceProviderCatalog extends OSLCResource {
       new Literal(serviceProviderTitle, null, this.xmlLiteral),
     ) as Variable[] | null;
     if (sp && !sp.length) {
-      sp = this.kb.each(
-        undefined,
-        Namespaces.DCTERMS('title'),
-        new Literal(serviceProviderTitle),
-      ) as Variable[] | null;
+      sp = this.kb.each(undefined, Namespaces.DCTERMS('title'), new Literal(serviceProviderTitle)) as Variable[] | null;
     }
     if (sp && !sp.length) {
       return null;
     }
     return sp ? sp[0]?.uri : null;
+  }
+
+  getServiceProvidersList() {
+    const serviceProvidersList: ServiceProviderDetails[] = [];
+    const serviceProviders = this.kb.each(undefined, undefined, Namespaces.OSLC('ServiceProvider'));
+    if (serviceProviders && serviceProviders.length > 0) {
+      for (const serviceProvider of serviceProviders) {
+        const titleNode = this.kb.the(serviceProvider as NamedNode, Namespaces.DCTERMS('title'));
+        const detailsNode = this.kb.the(serviceProvider as NamedNode, Namespaces.OSLC('details'));
+        if (titleNode && detailsNode) {
+          const obj = {
+            servicesUrl: serviceProvider.value,
+            detailsUrl: detailsNode.value,
+            serviceProviderName: titleNode.value,
+          };
+          serviceProvidersList.push(obj);
+        }
+      }
+    }
+    return serviceProvidersList;
   }
 }
 

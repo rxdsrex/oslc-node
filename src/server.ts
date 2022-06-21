@@ -1,5 +1,6 @@
 import { IndexedFormula, parse } from 'rdflib';
 import { NamedNode, Quad_Subject as QSubject } from 'rdflib/lib/tf-types';
+import { urlJoin } from './utils';
 import OSLCRequest from './OSLCRequest';
 import OSLCResource from './OSLCResource';
 import Compact from './Compact';
@@ -69,20 +70,20 @@ class OSLCServer {
 
   /**
    * Connect to the server and set the Service Provider Catalog
-   * @param serviceProvider - the rootservices oslc_*:*serviceProviders to connect to
+   * @param serviceProviderCatalog - the rootservices oslc_*:*serviceProviders to connect to
    */
-  public async connect(serviceProvider: NamedNode) {
+  public async connect(serviceProviderCatalog: NamedNode) {
     try {
       const { read, serverURI } = this;
-      const rootServices = await read(`${serverURI}/rootservices`);
+      const rootServices = await read(urlJoin(serverURI, 'rootservices'));
       this.rootServices = new RootServices(rootServices.id.value, rootServices.kb);
       // read the ServiceProviderCatalog, this does require authentication
-      const catalogUri = this.rootServices.getServiceProviderCatalogUri(serviceProvider);
+      const catalogUri = this.rootServices.getServiceProviderCatalogUri(serviceProviderCatalog);
       if (catalogUri) {
         const catalog = await read(catalogUri);
         this.serviceProviderCatalog = new ServiceProviderCatalog(catalog.id.value, catalog.kb);
       } else {
-        throw new OSLCError(`Service Provider Catalog URI could not be resolved for: ${serviceProvider.value}`, 404);
+        throw new OSLCError(`Service Provider Catalog URI could not be resolved for: ${serviceProviderCatalog.value}`, 404);
       }
       return Promise.resolve();
     } catch (err) {
@@ -113,7 +114,7 @@ class OSLCServer {
         throw new OSLCError(`Service Provider URL could not be resolved for: ${serviceProviderTitle}`, 404);
       } else {
         throw new OSLCError('serviceProviderCatalog is not initialized.'
-          + ' Please run the connect function before running this function.', 500);
+          + ' Please call the "connect" function before calling this function.', 500);
       }
     } catch (err) {
       return OSLCServer.handleError(err);
@@ -146,7 +147,26 @@ class OSLCServer {
         return Promise.resolve(null);
       }
       throw new OSLCError('serviceProvider is not initialized.'
-        + ' Please run the use function before running this function.', 500);
+        + ' Please call the "use" function before calling this function.', 500);
+    } catch (err) {
+      return OSLCServer.handleError(err);
+    }
+  }
+
+  /**
+   * Get a list of service providers (Project areas) on the server.
+   *
+   * @returns List of service providers (Project areas) on the server.
+   */
+  public async getServiceProvidersList() {
+    try {
+      const { serviceProviderCatalog } = this;
+      if (serviceProviderCatalog) {
+        const serviceProviderList = serviceProviderCatalog.getServiceProvidersList();
+        return Promise.resolve(serviceProviderList);
+      }
+      throw new OSLCError('serviceProviderCatalog is not initialized.'
+          + ' Please call the "connect" function before calling this function.', 500);
     } catch (err) {
       return OSLCServer.handleError(err);
     }
