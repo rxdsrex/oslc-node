@@ -1,5 +1,7 @@
 import { IndexedFormula, parse } from 'rdflib';
-import { NamedNode, Quad_Subject as QSubject } from 'rdflib/lib/tf-types';
+import {
+  NamedNode, Quad_Object as QuadObject, Quad_Predicate as QuadPredicate, Quad_Subject as QuadSubject,
+} from 'rdflib/lib/tf-types';
 import { urlJoin } from './utils';
 import OSLCRequest from './OSLCRequest';
 import OSLCResource from './OSLCResource';
@@ -66,6 +68,8 @@ class OSLCServer {
     this.getJazzProjectAreaId = this.getJazzProjectAreaId.bind(this);
     this.query = this.query.bind(this);
     this.read = this.read.bind(this);
+    this.getServiceProvidersList = this.getServiceProvidersList.bind(this);
+    this.readById = this.readById.bind(this);
   }
 
   /**
@@ -239,7 +243,7 @@ class OSLCServer {
       const predicate = typeof options.what === 'string' ? kb.sym(options.what) : options.what;
       const members = kb.each(kb.sym(options.from), predicate);
       for (const member of members) {
-        const memberStatements = kb.statementsMatching(member as QSubject, undefined, undefined);
+        const memberStatements = kb.statementsMatching(member as QuadSubject, undefined, undefined);
         const memberKb = new IndexedFormula();
         memberKb.add(memberStatements);
         resources.push(new OSLCResource(member.value, memberKb));
@@ -291,6 +295,51 @@ class OSLCServer {
         results = new OSLCResource(uri.href, kb, response.headers.etag);
       }
       return Promise.resolve(results);
+    } catch (err) {
+      return OSLCServer.handleError(err);
+    }
+  }
+
+  /**
+   * Read a specific OSLC resource by its ID. An error is returned
+   * if the resource doesn't exist
+   */
+
+  /**
+   * Read a specific OSLC resource by its ID. An error is returned
+   * if the resource doesn't exist.
+   * (This is a convenience method combining the `query` & the `read` methods of the class)
+   *
+   * @param resourceType - The OSLC resource type (like `Requirement`)
+   * @param resourceId - The OSLC resource ID (i.e., its dcterms:identifier value)
+   * @param what - The discovered member predicate for Query. Default: `rdfs:member`
+   */
+  public async readById(resourceType: string | QuadObject, resourceId: number, what?: QuadPredicate | string) {
+    try {
+      const { query, read, serviceProvider } = this;
+      if (serviceProvider) {
+        const queryBase = serviceProvider.queryBase(resourceType);
+        if (queryBase) {
+          const queryResult = await query({
+            from: queryBase,
+            what: what || Namespaces.RDFS('member'),
+            prefix: 'dcterms=<http://purl.org/dc/terms/>',
+            where: `dcterms:identifier=${resourceId}`,
+            properties: 'dcterms:identifier',
+          });
+          if (queryResult.resources.length) {
+            const resourceUri = queryResult.resources[0].getURI();
+            const resource = await read(resourceUri);
+            return Promise.resolve(resource);
+          }
+          throw new OSLCError(`No such resource with Resource Id: ${resourceId}`, 404);
+        } else {
+          const resTypeStr = typeof resourceType === 'string' ? resourceType : resourceType.value;
+          throw new OSLCError(`QueryBase not found for resource type: ${resTypeStr}`, 404);
+        }
+      }
+      throw new OSLCError('serviceProvider is not initialized.'
+        + ' Please call the "use" function before calling this function.', 500);
     } catch (err) {
       return OSLCServer.handleError(err);
     }

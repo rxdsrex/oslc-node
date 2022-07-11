@@ -4,6 +4,7 @@ import { AgentOptions, Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
 import { CookieJar } from 'tough-cookie';
 import ProxyAgent from 'proxy-agent';
+import OSLCError from './OSLCError';
 import { RequestType, ResponseType } from './types';
 
 /**
@@ -15,7 +16,7 @@ class OSLCRequest {
   /**
    * An instance of HTTP request client
    */
-  gotInstance: Got;
+  requestClient: Got;
 
   /**
    * A 🍪 jar containing the cookies for the domain
@@ -51,7 +52,7 @@ class OSLCRequest {
    */
   constructor(username: string, password: string, proxyUrl?: string, networkInterface?: string) {
     this.cookieJar = new CookieJar();
-    this.gotInstance = got.extend(this.getInitialGotOptions());
+    this.requestClient = got.extend(this.getInitialGotOptions());
     this.username = username;
     this.password = password;
     this.proxyUrl = proxyUrl;
@@ -76,19 +77,16 @@ class OSLCRequest {
           options.headers = {
             Accept: 'application/rdf+xml',
             'OSLC-Core-Version': '2.0',
-            'Content-Type': 'application/x-www-form-urlencoded',
           };
           break;
         case 'REST':
           options.headers = {
             Accept: 'application/xml',
-            'Content-Type': 'application/x-www-form-urlencoded',
           };
           break;
         case 'RESTJSON':
           options.headers = {
             Accept: 'text/json',
-            'Content-Type': 'application/x-www-form-urlencoded',
           };
           break;
         case 'IMAGE':
@@ -107,19 +105,19 @@ class OSLCRequest {
 
       let response: Response<ResponseType<T>>;
       if (options.url) {
-        response = (await this.gotInstance(options)) as Response<ResponseType<T>>;
+        response = (await this.requestClient(options)) as Response<ResponseType<T>>;
         if (response && response.headers['x-com-ibm-team-repository-web-auth-msg'] === 'authrequired') {
           const authResponse = await this.ibmElmFormLogin(options);
           if (authResponse.headers['x-com-ibm-team-repository-web-auth-msg'] === 'authfailed') {
             throw new Error(`401 : Authentication failed while requesting: ${options.url.href}`);
           } else {
-            response = (await this.gotInstance(options)) as Response<ResponseType<T>>;
+            response = (await this.requestClient(options)) as Response<ResponseType<T>>;
           }
         } else if (response && response.headers['www-authenticate']) {
           options.method = 'GET';
           options.username = this.username;
           options.password = this.password;
-          response = (await this.gotInstance(options)) as Response<ResponseType<T>>;
+          response = (await this.requestClient(options)) as Response<ResponseType<T>>;
         }
       } else {
         return Promise.reject(new Error('requestUri is undefined. Request not completed.'));
@@ -146,15 +144,31 @@ class OSLCRequest {
       options.headers = {
         ...options.headers,
         Accept: 'text/html',
+        'Content-Type': 'application/x-www-form-urlencoded',
       };
       options.body = `j_username=${encodeURIComponent(this.username)}&j_password=${encodeURIComponent(this.password)}`;
       const loginUrlStr = `${hrefWOParams}/j_security_check`;
       options.url = new URL(loginUrlStr);
-      const response = (await this.gotInstance(options)) as Response<ResponseType<T>>;
+      const response = (await this.requestClient(options)) as Response<ResponseType<T>>;
       return Promise.resolve(response);
     } catch (err) {
       return Promise.reject(err);
     }
+  }
+
+  /**
+   * Lookup a cookie in the cookie jar
+   *
+   * @param key - Key of the cookie
+   * @param currentUrl - URL for which cookies are applicable for
+   */
+  public async getCookie(key: string, currentUrl: string) {
+    const cookies = await this.cookieJar.getCookies(currentUrl);
+    const filteredCookies = cookies.filter((cookie) => cookie.key === key);
+    if (filteredCookies.length) {
+      return Promise.resolve(filteredCookies[0].value);
+    }
+    return Promise.reject(new OSLCError(`Cookie not found for key: ${key}, and URL: ${currentUrl}`, 404));
   }
 
   /**
@@ -193,7 +207,7 @@ class OSLCRequest {
     };
 
     if (this.proxyUrl) {
-      const proxyObj = url.parse('socks5h://localhost:15649');
+      const proxyObj = url.parse(this.proxyUrl);
       return new ProxyAgent({ ...httpAgentOptions, ...proxyObj });
     }
     if (type === 'http') {
