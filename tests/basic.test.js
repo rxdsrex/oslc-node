@@ -1,5 +1,9 @@
-require('dotenv').config();
+const path = require('path');
+const dotEnv = require('dotenv');
 const { OSLCServer, namespaces } = require('../dist');
+
+const envpath = path.join(__dirname, '.env');
+dotEnv.config({ path: envpath });
 
 describe('Test basic functionalities', () => {
   const { OSLCRM10 } = namespaces;
