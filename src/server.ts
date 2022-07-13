@@ -1,6 +1,6 @@
 import { IndexedFormula, parse } from 'rdflib';
 import {
-  NamedNode, Quad_Object as QuadObject, Quad_Predicate as QuadPredicate, Quad_Subject as QuadSubject,
+  NamedNode as NamedNodeType, Quad_Object as QuadObject, Quad_Predicate as QuadPredicate, Quad_Subject as QuadSubject,
 } from 'rdflib/lib/tf-types';
 import { urlJoin } from './utils';
 import OSLCRequest from './OSLCRequest';
@@ -76,7 +76,7 @@ class OSLCServer {
    * Connect to the server and set the Service Provider Catalog
    * @param serviceProviderCatalog - the rootservices oslc_*:*serviceProviders to connect to
    */
-  public async connect(serviceProviderCatalog: NamedNode) {
+  public async connect(serviceProviderCatalog: NamedNodeType) {
     try {
       const { read, serverURI } = this;
       const rootServices = await read(urlJoin(serverURI, 'rootservices'));
@@ -188,7 +188,7 @@ class OSLCServer {
   public async query<T extends QueryOptions>(options: T) : Promise<QueryResponse<T>> {
     try {
       const { request } = this;
-      const { OSLC } = Namespaces;
+      const { OSLC, DCTERMS } = Namespaces;
 
       const queryURL = new URL(OSLCServer.getQueryURLFromOptions(options));
       const response = await request.ibmElmAuthGet({
@@ -205,7 +205,7 @@ class OSLCServer {
         if (body.trim().length) {
           parse(body, kb, queryURL.href, 'application/rdf+xml');
           const errorMsg = kb.statementsMatching(undefined, OSLC('message')).length
-            ? kb.statementsMatching(undefined, OSLC('nextPage'))[0].object.value
+            ? kb.statementsMatching(undefined, OSLC('message'))[0].object.value
             : '';
           throw new OSLCError(
             `Error while executing OSLC query: ${queryURL.href}. Status: ${response.statusCode}. Error message: ${errorMsg}`,
@@ -229,12 +229,23 @@ class OSLCServer {
         const totalCountStatements = kb.statementsMatching(undefined, OSLC('totalCount'));
         if (totalCountStatements.length) {
           totalCount = parseInt(totalCountStatements[0].object.value, 10);
+        } else {
+          const responseTitleStatements = kb.statementsMatching(undefined, DCTERMS('title'));
+          const responseTitleMatch = responseTitleStatements[0].object.value.trim().match(/\d+/);
+          if (responseTitleMatch && responseTitleMatch.length) {
+            totalCount = parseInt(responseTitleMatch[0], 10);
+          } else {
+            totalCount = 0;
+          }
         }
       }
       if (options.paginate) {
-        nextPage = kb.statementsMatching(undefined, OSLC('nextPage')).length
-          ? kb.statementsMatching(undefined, OSLC('nextPage'))[0].object.value
-          : '';
+        const nextPageStatements = kb.statementsMatching(undefined, OSLC('nextPage'));
+        if (nextPageStatements.length) {
+          nextPage = nextPageStatements[0].object.value;
+        } else {
+          nextPage = '';
+        }
       }
 
       const resources = [];
@@ -251,8 +262,8 @@ class OSLCServer {
 
       const resolveObj = {
         resources,
-        nextPage: nextPage ? undefined : nextPage,
-        totalCount: totalCount > -1 ? undefined : totalCount,
+        nextPage: nextPage || undefined,
+        totalCount: totalCount > -1 ? totalCount : undefined,
       };
 
       return Promise.resolve(resolveObj) as Promise<QueryResponse<T>>;
@@ -348,8 +359,9 @@ class OSLCServer {
   private static getQueryURLFromOptions(options: QueryOptions) {
     const queryBase = options.from;
     let queryURL = '';
-    if (options.paginate && queryBase.includes('oslc.paging=true')) {
-      queryURL += `?oslc.paging=true&oslc.pageSize=${options.pageSize || 512}`;
+    if (options.paginate && !queryBase.includes('oslc.paging=true')) {
+      queryURL += queryBase.includes('?') ? '&' : '?';
+      queryURL += `oslc.paging=true&oslc.pageSize=${options.pageSize || 512}`;
     }
     if (options.paginate && options.pageArg) {
       queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';

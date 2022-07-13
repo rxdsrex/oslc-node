@@ -158,7 +158,8 @@ class OSLCResource {
    * Get the resource's dcterms:identifier property
    */
   getIdentifier() {
-    return this.get(Namespaces.DCTERMS('identifier'));
+    const result = this.get(Namespaces.DCTERMS('identifier'));
+    return Array.isArray(result) ? result[0] : result;
   }
 
   /**
@@ -173,7 +174,8 @@ class OSLCResource {
    * Get the resource's OSLC:shortTitle property
    */
   getShortTitle() {
-    return this.get(Namespaces.OSLC('shortTitle'));
+    const result = this.get(Namespaces.OSLC('shortTitle'));
+    return Array.isArray(result) ? result[0] : result;
   }
 
   /**
