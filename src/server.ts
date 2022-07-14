@@ -230,7 +230,7 @@ class OSLCServer {
         if (totalCountStatements.length) {
           totalCount = parseInt(totalCountStatements[0].object.value, 10);
         } else {
-          const responseTitleStatements = kb.statementsMatching(undefined, DCTERMS('title'));
+          const responseTitleStatements = kb.statementsMatching(kb.sym(queryURL.href), DCTERMS('title'));
           const responseTitleMatch = responseTitleStatements[0].object.value.trim().match(/\d+/);
           if (responseTitleMatch && responseTitleMatch.length) {
             totalCount = parseInt(responseTitleMatch[0], 10);
@@ -369,23 +369,23 @@ class OSLCServer {
     }
     if (options.prefix) {
       queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
-      queryURL += `oslc.prefix=${options.prefix}`;
+      queryURL += `oslc.prefix=${encodeURIComponent(options.prefix)}`;
     }
     if (options.properties) {
       queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
-      queryURL += `oslc.properties=${options.properties}`;
+      queryURL += `oslc.properties=${encodeURIComponent(options.properties)}`;
     }
     if (options.select) {
       queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
-      queryURL += `oslc.select=${options.select}`;
+      queryURL += `oslc.select=${encodeURIComponent(options.select)}`;
     }
     if (options.where) {
       queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
-      queryURL += `oslc.where=${options.where}`;
+      queryURL += `oslc.where=${encodeURIComponent(options.where)}`;
     }
     if (options.orderBy) {
       queryURL += queryURL.startsWith('?') || queryBase.includes('?') ? '&' : '?';
-      queryURL += `oslc.orderBy=${options.orderBy}`;
+      queryURL += `oslc.orderBy=${encodeURIComponent(options.orderBy)}`;
     }
     queryURL = `${queryBase}${queryURL}`;
     return queryURL;
